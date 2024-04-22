@@ -1,0 +1,52 @@
+version: '3'  # Define la versión de Docker Compose. Version 3 es una especificación popular para servicios en producción.
+
+services:
+  # Define el servicio de base de datos PostgreSQL.
+  postgres:
+    image: postgres:16.2-alpine3.19  # Usa la imagen oficial de PostgreSQL con Alpine Linux para menor tamaño de imagen.
+    environment:
+      - POSTGRES_USER=airflow  # Usuario de la base de datos, necesario para las conexiones y operaciones.
+      - POSTGRES_PASSWORD=airflow  # Contraseña del usuario, importante para la seguridad de la base de datos.
+      - POSTGRES_DB=airflow  # Nombre de la base de datos inicial a crear, utilizada por Airflow.
+    ports:
+      - "5432:5432"  # Expone el puerto 5432 para conexiones a la base de datos desde el host.
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Almacena los datos de la base de datos de manera persistente en un volumen.
+
+  # Define el servicio del servidor web de Airflow.
+  webserver:
+    image: apache/airflow:2.9.0  # Imagen de Airflow para ejecutar el servidor web y la interfaz de usuario.
+    depends_on:
+      - postgres  # Garantiza que PostgreSQL esté disponible antes de iniciar Airflow.
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor  # Configura Airflow para usar el ejecutor local.
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow  # Cadena de conexión a la base de datos de PostgreSQL.
+      - AIRFLOW__CORE__FERNET_KEY=<tu_clave_fernet_aquí>  # Clave para cifrado de datos sensibles, reemplazar con una clave generada.
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False  # Desactiva la carga automática de ejemplos.
+    volumes:
+      - ./dags:/opt/airflow/dags  # Vincula el directorio local de DAGs a Airflow para la ejecución de tareas.
+      - ./logs:/opt/airflow/logs  # Guarda los registros de Airflow en un directorio local.
+      - ./plugins:/opt/airflow/plugins  # Permite personalizar Airflow con plugins adicionales.
+    ports:
+      - "8080:8080"  # Hace accesible la interfaz web de Airflow en el puerto 8080 del host.
+    command: >  # Ejecuta comandos para inicializar la base de datos y el usuario admin antes de lanzar el servidor web.
+      bash -c "airflow db upgrade && airflow users create --role Admin --username admin --email admin@example.com --firstname Admin --lastname User --password admin && airflow webserver"
+
+  # Define el servicio del planificador de Airflow.
+  scheduler:
+    image: apache/airflow:2.9.0  # Utiliza la misma imagen que el servidor web para mantener la consistencia.
+    depends_on:
+      - webserver  # Asegura que el servidor web esté operativo antes de iniciar el planificador.
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor  # Confirma el uso del mismo tipo de ejecutor que en el servidor web.
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow  # Utiliza la misma cadena de conexión.
+    volumes:
+      - ./dags:/opt/airflow/dags  # Comparte los mismos DAGs con el servidor web.
+      - ./logs:/opt/airflow/logs  # Comparte registros para asegurar que todos los componentes logren escribir y acceder a los mismos.
+      - ./plugins:/opt/airflow/plugins  # Comparte los mismos plugins para garantizar la uniformidad en todas las operaciones.
+    command: scheduler  # Inicia el planificador para gestionar la programación de las tareas.
+
+volumes:
+  postgres_data:  # Crea un volumen docker para el almacenamiento persistente de la base de datos.
+
+
