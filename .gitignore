@@ -2,4 +2,5 @@ config_grammy.py
 config_spotify.py
 config_merge.py
 docker-secrets.env
-__pycache__
+__pycache__/
+
